@@ -6,6 +6,9 @@ on:
 
 env:
   IMAGE_REGISTRY_URL: ghcr.io
+  AZURE_RESOURCE_GROUP: cd-with-actions
+  AZURE_APP_PLAN: actions-ttt-deployment
+  AZURE_LOCATION: 'East US'
   ###############################################
   ### Replace <username> with GitHub username ###
   ###############################################
@@ -85,6 +88,15 @@ jobs:
           login-server: ${{env.IMAGE_REGISTRY_URL}}
           username: ${{ github.actor }}
           password: ${{ secrets.CR_PAT }}
+
+      - name: Ensure Azure web app exists
+        run: |
+          if ! az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }} >/dev/null 2>&1; then
+            az group create --location '${{ env.AZURE_LOCATION }}' --name ${{ env.AZURE_RESOURCE_GROUP }} --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            az appservice plan create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.AZURE_APP_PLAN }} --is-linux --sku F1 --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            az webapp create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --plan ${{ env.AZURE_APP_PLAN }} --name ${{ env.AZURE_WEBAPP_NAME }} --deployment-container-image-name nginx --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            az webapp config container set --docker-custom-image-name nginx --docker-registry-server-password ${{ secrets.CR_PAT }} --docker-registry-server-url https://${{ env.IMAGE_REGISTRY_URL }} --docker-registry-server-user ${{ github.actor }} --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          fi
 
       - name: Deploy web app container
         uses: azure/webapps-deploy@v3
